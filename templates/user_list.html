@@ -2,30 +2,129 @@
 <html>
 <head>
     <title>User List</title>
+    <style>
+        .form-section {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin: 15px 0;
+        }
+
+        input[type="text"], 
+        input[type="email"] {
+            width: 100%;
+            max-width: 300px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f8f9fa;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .danger-button {
+            background-color: #dc3545;
+        }
+
+        .danger-button:hover {
+            background-color: #bb2d3b;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #6c757d;
+            text-decoration: none;
+        }
+
+        .back-link:hover {
+            color: #5a6268;
+        }
+    </style>
 </head>
 <body>
     <h1>User Management</h1>
     
     <!-- 添加用户表单 -->
-    <form action="{{ url_for('user.add_user') }}" method="POST">
-        <input type="text" name="username" placeholder="Username" required>
-        <input type="email" name="email" placeholder="Email" required>
-        <button type="submit">Add User</button>
+    <form method="POST" action="{{ url_for('user.create_user') }}" class="form-section">
+        <h3>Add New User</h3>
+        
+        <div class="form-group">
+            <input type="text" name="username" 
+                   placeholder="username123" 
+                   required>
+        </div>
+
+        <div class="form-group">
+            <input type="email" name="email" 
+                   placeholder="123@example.com"
+                   required>
+        </div>
+
+        <button type="submit">Add</button>
     </form>
 
     <!-- 用户列表 -->
-    <ul>
-        {% for user in users %}
-            <li>
-                {{ user.username }} - {{ user.email }}
-                <a href="{{ url_for('user.delete_user', user_id=user.user_id) }}" 
-                   onclick="return confirm('确定删除吗？')">
-                    [Delete]
-                </a>
-            </li>
-        {% endfor %}
-    </ul>
-    
-    <p><a href="{{ url_for('main.hello') }}">← Back to Home</a></p>
+    <table>
+        <thead>
+            <tr>
+                <th>User ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.user_id }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.email }}</td>
+                <td>
+                    <form method="POST" 
+                          action="{{ url_for('user.delete_user', user_id=user.user_id) }}"
+                          onsubmit="return confirm('Confirm')">
+                        <button type="submit" class="danger-button">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{{ url_for('main.hello') }}" class="back-link">← Back to Home</a>
 </body>
 </html>
