@@ -2,10 +2,29 @@
 <html>
 <head>
     <title>Welcome</title>
+    <!-- 添加统一的基础样式 -->
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 0 20px; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        p { margin: 15px 0; }
+        a {
+            color: #3498db;
+            text-decoration: none;
+            padding: 8px 12px;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        a:hover {
+            background-color: #3498db;
+            color: white;
+        }
+    </style>
 </head>
 <body>
     <h1>Hello, Welcome to MyGO!</h1>
-    <p><a href="{{ url_for('user.user_list') }}">View All Users →</a></p>
-    <p><a href="{{ url_for('trip.trip_list') }}">View All Trips →</a></p>
+    <p><a href="{{ url_for('user.user_list') }}">👥 View All Users</a></p>
+    <p><a href="{{ url_for('trip.trip_list') }}">✈️ View All Trips</a></p>
+    <p><a href="{{ url_for('footprint.footprint_list') }}">👣 View Footprints</a></p>
 </body>
 </html>

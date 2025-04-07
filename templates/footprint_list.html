@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Footprints</title>
+    <style>
+        .form-section { background: #f9f9f9; padding: 20px; margin-bottom: 30px; border-radius: 8px; }
+        .footprint-card { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .footprint-meta {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .footprint-meta span {
+            margin-right: 15px;
+        }
+        textarea {
+            width: 100%;
+            max-width: 500px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+        select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Footprints</h1>
+    
+    <!-- 创建足迹表单 -->
+    <form method="POST" action="{{ url_for('footprint.create_footprint') }}" class="form-section">
+        <h3>Create New Footprint</h3>
+        
+        <div class="form-group">
+            <input type="number" name="user_id" placeholder="User ID" required>
+        </div>
+        
+        <div class="form-group">
+            <input type="text" name="title" placeholder="Title" required>
+        </div>
+        
+        <div class="form-group">
+            <textarea name="content" placeholder="Content" rows="4"></textarea>
+        </div>
+        
+        <div class="form-group">
+            <select name="location_id" required>
+                <option value="">Select Location</option>
+                {% for loc in locations %}
+                <option value="{{ loc.location_id }}">{{ loc.name }} ({{ loc.city }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <button type="submit">Create Footprint</button>
+    </form>
+
+    <!-- 足迹列表 -->
+    {% for fp in footprints %}
+    <div class="footprint-card">
+        <h3>{{ fp.title }}</h3>
+        <div class="footprint-meta">
+            <span>👤 {{ fp.username }}</span>
+            <span>📍 {{ fp.location_name }} ({{ fp.city }})</span>
+            <span>📅 {{ fp.created_at }}</span>
+        </div>
+        <p>{{ fp.content }}</p>
+        <!-- {% if fp.image_url %}
+        <img src="{{ fp.image_url }}" alt="Footprint image" style="max-width: 300px;">
+        {% endif %} -->
+    </div>
+    {% endfor %}
+
+    <a href="{{ url_for('main.hello') }}" class="back-link">← Back to Home</a>
+</body>
+</html>

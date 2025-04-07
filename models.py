@@ -3,6 +3,7 @@ import random
 import sqlite3
 
 from datetime import datetime, timedelta
+import time
 
 DB_NAME = 'database.db'
 
@@ -53,6 +54,38 @@ class DatabaseManager:
                     AND (SELECT COUNT(*) FROM trip_participants WHERE trip_id = OLD.trip_id) = 0;
                 END
             ''')
+
+            # 城市表
+            cursor.execute('''
+                CREATE TABLE cities (
+                    city_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    country TEXT NOT NULL,
+                    longitude DECIMAL(9,6) NOT NULL,
+                    latitude DECIMAL(9,6) NOT NULL
+                )''')
+
+            # 地点表
+            cursor.execute('''
+                CREATE TABLE locations (
+                    location_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    address TEXT,
+                    type TEXT CHECK(type IN ('attraction','restaurant','transport')),
+                    city_id INTEGER NOT NULL REFERENCES cities(city_id)
+                )''')
+
+            # 足迹表
+            cursor.execute('''
+                CREATE TABLE footprints (
+                    footprint_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    content TEXT,
+                    image_url TEXT,
+                    created_at DATETIME NOT NULL,
+                    user_id INTEGER NOT NULL REFERENCES users(user_id),
+                    location_id INTEGER NOT NULL REFERENCES locations(location_id)
+                )''')
             
             conn.commit()
     
@@ -193,4 +226,89 @@ class DatabaseManager:
     
     def insert_fake_data(self):
         self._batch_insert('users', self.generate_fake_users())
+
+        # 新增城市和地点测试数据
+        cities = [
+            {'name': 'Paris', 'country': 'France', 'longitude': 48.8566, 'latitude': 2.3522},
+            {'name': 'London', 'country': 'UK', 'longitude': 51.5074, 'latitude': -0.1278}
+        ]
+        self._batch_insert('cities', cities)
+        
+        locations = [
+            {'name': 'Eiffel Tower', 'address': 'Champ de Mars', 'type': 'attraction', 'city_id': 1},
+            {'name': 'Louvre Museum', 'address': 'Rue de Rivoli', 'type': 'attraction', 'city_id': 1},
+            {'name': 'Big Ben', 'address': 'Westminster', 'type': 'attraction', 'city_id': 2}
+        ]
+        self._batch_insert('locations', locations)
+
+    def create_footprint(self, user_id, title, content, location_id):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('''
+                    INSERT INTO footprints 
+                    (title, content, image_url, created_at, user_id, location_id)
+                    VALUES (?, ?, ?, datetime('now'), ?, ?)
+                ''', (title, content, f'img_{int(time.time())}.jpg', user_id, location_id))
+                conn.commit()
+                return cursor.lastrowid
+            except sqlite3.Error as e:
+                print(f"创建足迹失败: {str(e)}")
+                return None
+
+    def get_all_footprints(self):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT 
+                    f.footprint_id, 
+                    f.title, 
+                    f.content, 
+                    f.image_url, 
+                    f.created_at,
+                    f.user_id,
+                    l.location_id,
+                    l.name as location_name,
+                    c.name as city,
+                    u.username
+                FROM footprints f
+                JOIN users u ON f.user_id = u.user_id
+                JOIN locations l ON f.location_id = l.location_id
+                JOIN cities c ON l.city_id = c.city_id
+                ORDER BY f.created_at DESC
+            ''')
+            footprints = []
+            for row in cursor.fetchall():
+                # 格式化时间
+                created_at = datetime.strptime(row[4], '%Y-%m-%d %H:%M:%S') if isinstance(row[4], str) else row[4]
+                formatted_time = created_at.strftime('%Y-%m-%d %H:%M')
+                
+                footprints.append({
+                    'footprint_id': row[0],
+                    'title': row[1],
+                    'content': row[2],
+                    'image_url': row[3],
+                    'created_at': formatted_time,
+                    'user_id': row[5],
+                    'location_id': row[6],
+                    'location_name': row[7],
+                    'city': row[8],
+                    'username': row[9]
+                })
+            return footprints
+        
+    # 新增locations相关方法
+    def get_all_locations(self):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT l.location_id, l.name, c.name as city_name 
+                FROM locations l
+                JOIN cities c ON l.city_id = c.city_id
+            ''')
+            return [{
+                'location_id': row[0],
+                'name': row[1],
+                'city': row[2]
+            } for row in cursor.fetchall()]
 

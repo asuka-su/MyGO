@@ -1,7 +1,7 @@
 from flask import Flask
 
 from models import DatabaseManager
-from routers import main_blueprint, user_blueprint, trip_blueprint
+from routers import main_blueprint, user_blueprint, trip_blueprint, footprint_blueprint
 
 def create_app():
     app = Flask(__name__)
@@ -12,7 +12,7 @@ def create_app():
     app.register_blueprint(main_blueprint)
     app.register_blueprint(user_blueprint, url_prefix='/user')
     app.register_blueprint(trip_blueprint, url_prefix='/trip')
-
+    app.register_blueprint(footprint_blueprint, url_prefix='/footprint')
     return app
 
 if __name__ == '__main__':
