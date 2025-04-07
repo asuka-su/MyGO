@@ -10,15 +10,18 @@ Trip & Trip-Participants
 - delete_trip
 - get_all_trips
 - delete trip if all participants are deleted
+- get_trips_by_filters
+
+Footprint
+- create_footprint
+- get_all_footprints
+
+Location
+- get_all_locations
 
 Fake Data
-- insert_fake_data
-- generate_fake_users
-
-### TODO
-
-Trip & Trip-Participants
-- fine-grained control on trip-participants: remove one participants from a trip
+- users
+- trips
 
 ### TO RUN THE APP
 
