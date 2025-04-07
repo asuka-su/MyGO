@@ -2,7 +2,7 @@ import os
 import random
 import sqlite3
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import time
 
 DB_NAME = 'database.db'
@@ -131,19 +131,10 @@ class DatabaseManager:
                 'email': row[2], 
             } for row in cursor.fetchall()]
     
-    def generate_fake_users(self, count=7):
-        users = []
-        for i in range(count):
-            user_id = str(i)
-            users.append({
-                'username': f'user_{user_id}', 
-                'email': f'user_{user_id}@example.com'
-            })
-        return users
-
     ###########################
     ##         trip          ##
     ###########################
+
     def create_trip(self, participants, start_day, end_day):
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -201,45 +192,118 @@ class DatabaseManager:
                 'participants': row[3]
             } for row in cursor.fetchall()]
     
+    def get_trips_by_filters(self, participants, 
+                             start_after=None, start_before=None, 
+                             end_after=None, end_before=None):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+        
+            participant_query = '''
+                SELECT t.trip_id, t.start_day, t.end_day
+                FROM trips t
+                JOIN trip_participants tp ON t.trip_id = tp.trip_id
+                WHERE tp.user_id IN ({})
+                GROUP BY t.trip_id
+                HAVING COUNT(DISTINCT tp.user_id) = ?
+            '''.format(','.join(['?']*len(participants)))
+        
+            cursor.execute(participant_query, participants + [len(participants)])
+            candidate_ids = [str(row[0]) for row in cursor.fetchall()]
+        
+            if not candidate_ids:
+                return []
+
+            time_query = '''
+                SELECT t.trip_id, t.start_day, t.end_day
+                FROM trips t
+                WHERE t.trip_id IN ({})
+            '''.format(','.join(['?']*len(candidate_ids)))
+        
+            time_conditions = []
+            time_params = []
+            if start_after:
+                time_conditions.append("t.start_day >= ?")
+                time_params.append(start_after)
+            if start_before:
+                time_conditions.append("t.start_day <= ?")
+                time_params.append(start_before)
+            if end_after:
+                time_conditions.append("t.end_day >= ?")
+                time_params.append(end_after)
+            if end_before:
+                time_conditions.append("t.end_day <= ?")
+                time_params.append(end_before)
+        
+            if time_conditions:
+                time_query += " AND " + " AND ".join(time_conditions)
+        
+            cursor.execute(time_query, candidate_ids + time_params)
+            trip_data = cursor.fetchall()
+
+            if not trip_data:
+                return []
+
+            trip_ids = [str(t[0]) for t in trip_data]
+            participant_query = f'''
+                SELECT tp.trip_id, u.user_id, u.username
+                FROM trip_participants tp
+                JOIN users u ON tp.user_id = u.user_id
+                WHERE tp.trip_id IN ({','.join(trip_ids)})
+            '''
+            cursor.execute(participant_query)
+            participant_map = {}
+            for row in cursor.fetchall():
+                trip_id = row[0]
+                if trip_id not in participant_map:
+                    participant_map[trip_id] = []
+                participant_map[trip_id].append({
+                    'user_id': row[1],
+                    'username': row[2]
+                })
+            
+            return [{
+                'trip_id': t[0],
+                'start_day': datetime.strptime(t[1], "%Y-%m-%d").date(),
+                'end_day': datetime.strptime(t[2], "%Y-%m-%d").date(),
+                'participants': participant_map.get(t[0], [])
+            } for t in trip_data]
+    
+    
     ###########################
     ##         fake          ##
     ###########################
-
-    def _batch_insert(self, table, data):
-        if not data:
-            return
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                columns = ', '.join(data[0].keys())
-                placeholders = ', '.join(['?'] * len(data[0]))
-                
-                cursor.executemany(
-                    f'INSERT INTO {table} ({columns}) VALUES ({placeholders})',
-                    [tuple(item.values()) for item in data]
-                )
-                conn.commit()
-            except sqlite3.IntegrityError as e:
-                print(f"Somthing is wrong: {str(e)}")
-                conn.rollback()
     
     def insert_fake_data(self):
-        self._batch_insert('users', self.generate_fake_users())
+        available_user_ids = []
+        for i in range(15):
+            self.create_user(f"User_{i}", f"{i}_{i}@example.com")
+            available_user_ids.append(i+1)
 
-        # 新增城市和地点测试数据
-        cities = [
-            {'name': 'Paris', 'country': 'France', 'longitude': 48.8566, 'latitude': 2.3522},
-            {'name': 'London', 'country': 'UK', 'longitude': 51.5074, 'latitude': -0.1278}
-        ]
-        self._batch_insert('cities', cities)
+        for _ in range(10):
+            start_date = date.today() + timedelta(days=random.randint(1, 30))
+            end_date = start_date + timedelta(days=random.randint(1, 14))
+            num_participants = random.randint(1, 4)
+            selected_users = random.sample(available_user_ids, num_participants)
+            self.create_trip(selected_users, start_date, end_date)
+
+
+        # # 新增城市和地点测试数据
+        # cities = [
+        #     {'name': 'Paris', 'country': 'France', 'longitude': 48.8566, 'latitude': 2.3522},
+        #     {'name': 'London', 'country': 'UK', 'longitude': 51.5074, 'latitude': -0.1278}
+        # ]
+        # self._batch_insert('cities', cities)
         
-        locations = [
-            {'name': 'Eiffel Tower', 'address': 'Champ de Mars', 'type': 'attraction', 'city_id': 1},
-            {'name': 'Louvre Museum', 'address': 'Rue de Rivoli', 'type': 'attraction', 'city_id': 1},
-            {'name': 'Big Ben', 'address': 'Westminster', 'type': 'attraction', 'city_id': 2}
-        ]
-        self._batch_insert('locations', locations)
+        # locations = [
+        #     {'name': 'Eiffel Tower', 'address': 'Champ de Mars', 'type': 'attraction', 'city_id': 1},
+        #     {'name': 'Louvre Museum', 'address': 'Rue de Rivoli', 'type': 'attraction', 'city_id': 1},
+        #     {'name': 'Big Ben', 'address': 'Westminster', 'type': 'attraction', 'city_id': 2}
+        # ]
+        # self._batch_insert('locations', locations)
+
+    ###########################
+    ##       footprint       ##
+    ###########################
 
     def create_footprint(self, user_id, title, content, location_id):
         with self._get_connection() as conn:

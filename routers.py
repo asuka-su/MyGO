@@ -64,6 +64,40 @@ def create_trip():
     except Exception as e:
         return str(e), 400
 
+@trip_blueprint.route('/search', methods=['GET', 'POST'])
+def search_trips():
+    try:
+        # Get all users for dropdown
+        users = db_manager.get_all_users()
+        filters = {}
+        
+        if request.method == 'POST':
+            participants = list(map(int, request.form.getlist('participants')))
+            filters = {
+                'participants': participants if participants else None,
+                'start_after': request.form.get('start_after') or None,
+                'start_before': request.form.get('start_before') or None,
+                'end_after': request.form.get('end_after') or None,
+                'end_before': request.form.get('end_before') or None
+            }
+
+            trips = db_manager.get_trips_by_filters(**filters)
+            
+            return render_template('trip_search.html',
+                                 users=users,
+                                 selected_participants=participants,
+                                 results=trips, 
+                                 filters=filters)
+        
+        return render_template('trip_search.html', 
+                             users=users,
+                             selected_participants=[],
+                             results=[], 
+                             filters=filters)
+    
+    except Exception as e:
+        return str(e), 400
+
 
 @trip_blueprint.route('/delete/<int:trip_id>', methods=['POST'])
 def delete_trip(trip_id):
