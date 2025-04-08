@@ -55,24 +55,13 @@ class DatabaseManager:
                 END
             ''')
 
-            # 城市表
-            cursor.execute('''
-                CREATE TABLE cities (
-                    city_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    country TEXT NOT NULL,
-                    longitude DECIMAL(9,6) NOT NULL,
-                    latitude DECIMAL(9,6) NOT NULL
-                )''')
-
             # 地点表
             cursor.execute('''
                 CREATE TABLE locations (
                     location_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     address TEXT,
-                    type TEXT CHECK(type IN ('attraction','restaurant','transport')),
-                    city_id INTEGER NOT NULL REFERENCES cities(city_id)
+                    type TEXT CHECK(type IN ('attraction','restaurant','transport'))
                 )''')
 
             # 足迹表
@@ -267,6 +256,48 @@ class DatabaseManager:
                 'end_day': datetime.strptime(t[2], "%Y-%m-%d").date(),
                 'participants': participant_map.get(t[0], [])
             } for t in trip_data]
+        
+    def create_location(self, name, address, location_type):
+        """
+        创建新地点并验证城市有效性
+        参数:
+            name: 地点名称 (必填)
+            address: 地址信息
+            location_type: 类型必须为 attraction/restaurant/transport
+        返回: 新创建地点的location_id
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                # 验证类型有效性
+                valid_types = {'attraction', 'restaurant', 'transport'}
+                if location_type not in valid_types:
+                    raise ValueError(f"Invalid type: {location_type}. Must be one of {valid_types}")
+
+                # 插入主记录
+                cursor.execute('''
+                    INSERT INTO locations 
+                    (name, address, type)
+                    VALUES (?, ?, ?)
+                ''', (name, address, location_type))
+                
+                location_id = cursor.lastrowid
+                conn.commit()
+                return location_id
+
+            except sqlite3.IntegrityError as e:
+                conn.rollback()
+                if "UNIQUE constraint" in str(e):
+                    raise Exception(f"Location name '{name}' already exists")
+                raise Exception(f"Database integrity error: {str(e)}")
+                
+            except sqlite3.Error as e:
+                conn.rollback()
+                raise Exception(f"Database operation failed: {str(e)}")
+                
+            except ValueError as ve:
+                conn.rollback()
+                raise ve
     
     
     ###########################
@@ -285,20 +316,24 @@ class DatabaseManager:
             num_participants = random.randint(1, 4)
             selected_users = random.sample(available_user_ids, num_participants)
             self.create_trip(selected_users, start_date, end_date)
-
-
-        # # 新增城市和地点测试数据
-        # cities = [
-        #     {'name': 'Paris', 'country': 'France', 'longitude': 48.8566, 'latitude': 2.3522},
-        #     {'name': 'London', 'country': 'UK', 'longitude': 51.5074, 'latitude': -0.1278}
-        # ]
-        # self._batch_insert('cities', cities)
         
-        # locations = [
-        #     {'name': 'Eiffel Tower', 'address': 'Champ de Mars', 'type': 'attraction', 'city_id': 1},
-        #     {'name': 'Louvre Museum', 'address': 'Rue de Rivoli', 'type': 'attraction', 'city_id': 1},
-        #     {'name': 'Big Ben', 'address': 'Westminster', 'type': 'attraction', 'city_id': 2}
-        # ]
+
+        locations = [
+            {'name': 'Eiffel Tower', 'address': 'Paris', 'type': 'attraction'},
+            {'name': 'Louvre Museum', 'address': 'Paris', 'type': 'attraction'},
+            {'name': 'Big Ben', 'address': 'London', 'type': 'attraction'},
+            {'name': 'Daxing Airport', 'address': 'Beijing', 'type': 'transport'},
+            {'name': 'Beijing West Railway Station', 'address': 'Beijing', 'type': 'transport'},
+            {'name': 'Peking Duck Restaurant', 'address': 'Beijing', 'type': 'restaurant'},
+            {'name': 'Sushi Place', 'address': 'Tokyo', 'type': 'restaurant'},
+            {'name': 'Great Wall', 'address': 'Beijing', 'type': 'attraction'},
+            {'name': 'Forbidden City', 'address': 'Beijing', 'type': 'attraction'},
+            {'name': 'Tokyo Tower', 'address': 'Tokyo', 'type': 'attraction'}
+        ]
+
+        for location in locations:
+            self.create_location(location['name'], location['address'], location['type'])
+
         # self._batch_insert('locations', locations)
 
     ###########################
@@ -333,12 +368,10 @@ class DatabaseManager:
                     f.user_id,
                     l.location_id,
                     l.name as location_name,
-                    c.name as city,
                     u.username
                 FROM footprints f
                 JOIN users u ON f.user_id = u.user_id
                 JOIN locations l ON f.location_id = l.location_id
-                JOIN cities c ON l.city_id = c.city_id
                 ORDER BY f.created_at DESC
             ''')
             footprints = []
@@ -356,8 +389,7 @@ class DatabaseManager:
                     'user_id': row[5],
                     'location_id': row[6],
                     'location_name': row[7],
-                    'city': row[8],
-                    'username': row[9]
+                    'username': row[8]
                 })
             return footprints
         
@@ -366,13 +398,11 @@ class DatabaseManager:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT l.location_id, l.name, c.name as city_name 
+                SELECT l.location_id, l.name
                 FROM locations l
-                JOIN cities c ON l.city_id = c.city_id
             ''')
             return [{
                 'location_id': row[0],
                 'name': row[1],
-                'city': row[2]
             } for row in cursor.fetchall()]
 
