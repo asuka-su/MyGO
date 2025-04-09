@@ -66,13 +66,19 @@
         <button type="submit">Create Footprint</button>
     </form>
 
+    <!-- 在footprint_list.html的合适位置添加 -->
+    <div style="margin: 20px 0;">
+        <a href="{{ url_for('footprint.search_footprints') }}" class="button">
+            🔍 Search Footprints
+        </a>
+    </div>
     <!-- 足迹列表 -->
     {% for fp in footprints %}
     <div class="footprint-card">
         <h3>{{ fp.title }}</h3>
         <div class="footprint-meta">
             <span>👤 {{ fp.username }}</span>
-            <span>📍 {{ fp.location_name }}</span>
+            <span>📍 {{ fp.location_name }} ({{ fp.location_type }})</span>
             <span>📅 {{ fp.created_at }}</span>
         </div>
         <p>{{ fp.content }}</p>

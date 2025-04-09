@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search Footprints</title>
+    <style>
+        .form-section {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .filter-group {
+            margin: 15px 0;
+        }
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .type-checkbox {
+            margin-right: 15px;
+        }
+        .footprint-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .footprint-meta span {
+            margin-right: 15px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Search Footprints</h1>
+    
+    <a href="{{ url_for('footprint.footprint_list') }}" style="margin-bottom: 20px; display: block;">← Back to List</a>
+
+    <form method="POST" class="form-section">
+        <div class="filter-group">
+            <label>Username:</label>
+            <input type="text" name="username" 
+                   value="{{ filters.username }}"
+                   placeholder="Search by username">
+        </div>
+
+        <div class="filter-group">
+            <label>Location Name:</label>
+            <input type="text" name="location_name" 
+                   value="{{ filters.location_name }}"
+                   placeholder="Search by location name">
+        </div>
+
+        <div class="filter-group">
+            <label>Location Type:</label>
+            <div>
+                {% for type in location_types %}
+                <label class="type-checkbox">
+                    <input type="checkbox" name="location_types" 
+                           value="{{ type }}"
+                           {% if type in filters.location_types %}checked{% endif %}>
+                    {{ type|title }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label>Time Range:</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="date" name="created_after" 
+                       value="{{ filters.created_after }}">
+                <span>to</span>
+                <input type="date" name="created_before"
+                       value="{{ filters.created_before }}">
+            </div>
+        </div>
+
+        <button type="submit">Search</button>
+    </form>
+
+    {% if results %}
+    <h2>{{ results|length }} Results Found</h2>
+    {% for fp in results %}
+    <div class="footprint-card">
+        <h3>{{ fp.title }}</h3>
+        <div class="footprint-meta">
+            <span>👤 {{ fp.username }}</span>
+            <span>📍 {{ fp.location_name }} ({{ fp.location_type }})</span>
+            <span>📅 {{ fp.created_at }}</span>
+        </div>
+        {% if fp.content %}
+        <p>{{ fp.content }}</p>
+        {% endif %}
+        <!-- {% if fp.image_url %}
+        <img src="{{ fp.image_url }}" alt="Footprint image" style="max-width: 300px;">
+        {% endif %} -->
+    </div>
+    {% endfor %}
+    {% elif request.method == 'POST' %}
+    <p>No footprints found matching the criteria</p>
+    {% endif %}
+</body>
+</html>

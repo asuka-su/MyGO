@@ -368,6 +368,7 @@ class DatabaseManager:
                     f.user_id,
                     l.location_id,
                     l.name as location_name,
+                    l.type as location_type,
                     u.username
                 FROM footprints f
                 JOIN users u ON f.user_id = u.user_id
@@ -389,10 +390,81 @@ class DatabaseManager:
                     'user_id': row[5],
                     'location_id': row[6],
                     'location_name': row[7],
-                    'username': row[8]
+                    'location_type': row[8],
+                    'username': row[9]
                 })
             return footprints
         
+    def get_footprints_by_filters(self, username=None, location_name=None, 
+                            location_types=None, created_after=None, 
+                            created_before=None):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            
+            query = '''
+                SELECT 
+                    f.footprint_id, 
+                    f.title, 
+                    f.content, 
+                    f.image_url, 
+                    f.created_at,
+                    f.user_id,
+                    l.location_id,
+                    l.name as location_name,
+                    l.type as location_type,
+                    u.username
+                FROM footprints f
+                JOIN users u ON f.user_id = u.user_id
+                JOIN locations l ON f.location_id = l.location_id
+                WHERE 1=1
+            '''
+            params = []
+            
+            # 用户名筛选
+            if username:
+                query += " AND u.username LIKE ?"
+                params.append(f"%{username}%")
+            
+            # 地点名称筛选
+            if location_name:
+                query += " AND l.name LIKE ?"
+                params.append(f"%{location_name}%")
+            
+            # 地点类型筛选
+            if location_types:
+                placeholders = ','.join(['?']*len(location_types))
+                query += f" AND l.type IN ({placeholders})"
+                params.extend(location_types)
+            
+            # 时间范围筛选
+            if created_after:
+                query += " AND datetime(f.created_at) >= datetime(?)"
+                params.append(created_after)
+            if created_before:
+                query += " AND datetime(f.created_at) <= datetime(?)"
+                params.append(created_before)
+            
+            query += " ORDER BY f.created_at DESC"
+            
+            cursor.execute(query, params)
+            
+            footprints = []
+            for row in cursor.fetchall():
+                created_at = datetime.strptime(row[4], '%Y-%m-%d %H:%M:%S') if isinstance(row[4], str) else row[4]
+                footprints.append({
+                    'footprint_id': row[0],
+                    'title': row[1],
+                    'content': row[2],
+                    'image_url': row[3],
+                    'created_at': created_at.strftime('%Y-%m-%d %H:%M'),
+                    'user_id': row[5],
+                    'location_id': row[6],
+                    'location_name': row[7],
+                    'location_type': row[8],
+                    'username': row[9]
+                })
+            return footprints
+    
     # 新增locations相关方法
     def get_all_locations(self):
         with self._get_connection() as conn:

@@ -139,6 +139,38 @@ def create_footprint():
     except Exception as e:
         return str(e), 400
 
+@footprint_blueprint.route('/search', methods=['GET', 'POST'])
+def search_footprints():
+    try:
+        users = db_manager.get_all_users()
+        location_types = ['attraction', 'restaurant', 'transport']
+        filters = {
+            'username': '',
+            'location_name': '',
+            'location_types': [],
+            'created_after': '',
+            'created_before': ''
+        }
+        results = []
+        
+        if request.method == 'POST':
+            filters = {
+                'username': request.form.get('username', '').strip(),
+                'location_name': request.form.get('location_name', '').strip(),
+                'location_types': request.form.getlist('location_types'),
+                'created_after': request.form.get('created_after') or '',
+                'created_before': request.form.get('created_before') or ''
+            }
+            results = db_manager.get_footprints_by_filters(**filters)
+            
+        return render_template('footprint_search.html',
+                             users=users,
+                             location_types=location_types,
+                             results=results,
+                             filters=filters)
+    
+    except Exception as e:
+        return str(e), 400
 # @footprint_blueprint.route('/<int:footprint_id>/comments', methods=['POST'])
 # def add_comment(footprint_id):
 #     user_id = request.form.get('user_id')
