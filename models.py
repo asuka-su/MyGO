@@ -450,6 +450,49 @@ class DatabaseManager:
                     'username': row[9]
                 })
             return footprints
+        
+    
+    def get_footprint_detail(self, footprint_id):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT f.*, l.name as location_name, u.username 
+                FROM footprints f
+                JOIN locations l ON f.location_id = l.location_id
+                JOIN users u ON f.user_id = u.user_id
+                WHERE f.footprint_id = ?
+            ''', (footprint_id,))
+            row = cursor.fetchone()
+            if row:
+                return {
+                    'footprint_id': row[0],
+                    'title': row[1],
+                    'content': row[2],
+                    'image_url': row[3],
+                    'created_at': row[4],
+                    'user_id': row[5],
+                    'location_id': row[6],
+                    'location_name': row[7],
+                    'username': row[8]
+                }
+            return None
+
+    def update_footprint(self, footprint_id, title, content, location_id):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('''
+                    UPDATE footprints SET
+                        title = ?,
+                        content = ?,
+                        location_id = ?
+                    WHERE footprint_id = ?
+                ''', (title, content, location_id, footprint_id))
+                conn.commit()
+                return cursor.rowcount > 0
+            except sqlite3.Error as e:
+                print(f"更新足迹失败: {str(e)}")
+                return False
     
     ###########################
     ##       location        ##

@@ -179,6 +179,42 @@ def search_footprints():
     
     except Exception as e:
         return str(e), 400
+    
+@footprint_blueprint.route('/edit/<int:footprint_id>', methods=['GET', 'POST'])
+def edit_footprint(footprint_id):
+    try:
+        # 获取足迹详情
+        footprint = db_manager.get_footprint_detail(footprint_id)
+        if not footprint:
+            return "Footprint not found", 404
+
+        locations = db_manager.get_all_locations()
+
+        if request.method == 'POST':
+            # 处理更新逻辑
+            new_title = request.form.get('title')
+            new_content = request.form.get('content')
+            new_location_id = request.form.get('location_id')
+
+            if db_manager.update_footprint(
+                footprint_id=footprint_id,
+                title=new_title,
+                content=new_content,
+                location_id=new_location_id
+            ):
+                # 根据来源页面重定向
+                if 'from_search' in request.args:
+                    return redirect(url_for('footprint.search_footprints'))
+                return redirect(url_for('footprint.footprint_list'))
+            
+            return "Update failed", 400
+
+        return render_template('edit_footprint.html',
+                             footprint=footprint,
+                             locations=locations)
+
+    except Exception as e:
+        return str(e), 400
 # @footprint_blueprint.route('/<int:footprint_id>/comments', methods=['POST'])
 # def add_comment(footprint_id):
 #     user_id = request.form.get('user_id')

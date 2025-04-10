@@ -95,6 +95,11 @@
         {% if fp.content %}
         <p>{{ fp.content }}</p>
         {% endif %}
+        <div class="action-buttons" style="margin-top: 10px;">
+            <a href="{{ url_for('footprint.edit_footprint', footprint_id=fp.footprint_id) }}" 
+               class="button" 
+               style="background-color: #28a745;">Edit</a>
+        </div>
         <!-- {% if fp.image_url %}
         <img src="{{ fp.image_url }}" alt="Footprint image" style="max-width: 300px;">
         {% endif %} -->
