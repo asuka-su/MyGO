@@ -33,35 +33,46 @@
                 <div class="form-text">Hold Ctrl/Cmd to select multiple</div>
             </div>
 
+            <div class="mb-3">
+                <label class="form-label">Select Locations:</label>
+                <select name="locations" multiple class="form-select">
+                    {% for location in locations %}
+                        <option value="{{ location.location_id }}" 
+                            {% if location.location_id in selected_locations %}selected{% endif %}>
+                            {{ location.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Hold Ctrl/Cmd to select multiple</div>
+            </div>
+
             <!-- 时间筛选区块 -->
             <div class="time-filters mt-4">
                 <h5>Time Filters</h5>
         
-                <div class="row">
-                    <div class="col-md-3">
-                        <label>Start After:</label>
-                        <input type="date" name="start_after" 
-                            value="{{ filters.start_after or '' }}"
-                            class="form-control">
-                    </div>
-                    <div class="col-md-3">
-                        <label>Start Before:</label>
-                        <input type="date" name="start_before"
-                            value="{{ filters.start_before or '' }}"
-                            class="form-control">
-                    </div>
-                    <div class="col-md-3">
-                        <label>End After:</label>
-                        <input type="date" name="end_after"
-                            value="{{ filters.end_after or '' }}"
-                            class="form-control">
-                    </div>
-                    <div class="col-md-3">
-                        <label>End Before:</label>
-                        <input type="date" name="end_before"
-                            value="{{ filters.end_before or '' }}"
-                            class="form-control">
-                    </div>
+                <div class="col-md-6">
+                    <label>Start After:</label>
+                    <input type="date" name="start_after" 
+                        value="{{ filters.start_after or '' }}"
+                        class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label>Start Before:</label>
+                    <input type="date" name="start_before"
+                        value="{{ filters.start_before or '' }}"
+                        class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label>End After:</label>
+                    <input type="date" name="end_after"
+                        value="{{ filters.end_after or '' }}"
+                        class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label>End Before:</label>
+                    <input type="date" name="end_before"
+                        value="{{ filters.end_before or '' }}"
+                        class="form-control">
                 </div>
             </div>          
             <button type="submit" class="btn btn-success">Search</button>
@@ -77,6 +88,7 @@
                         <th>Start Day</th>
                         <th>End Day</th>
                         <th>Participants</th>
+                        <th>Locations</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -88,6 +100,11 @@
                         <td>
                             {% for p in trip.participants %}
                             <span class="badge bg-primary">{{ p.username }}</span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% for l in trip.locations %}
+                            <span class="badge bg-primary">{{ l.locationname }}</span>
                             {% endfor %}
                         </td>
                     </tr>

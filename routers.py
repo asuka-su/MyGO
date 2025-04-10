@@ -45,7 +45,8 @@ def delete_user(user_id):
 def trip_list():
     trips = db_manager.get_all_trips()
     users = db_manager.get_all_users()
-    return render_template('trip_list.html', trips=trips, users=users)
+    locations = db_manager.get_all_locations()
+    return render_template('trip_list.html', trips=trips, users=users, locations=locations)
 
 
 @trip_blueprint.route('/create', methods=['POST'])
@@ -54,11 +55,12 @@ def create_trip():
         start_day = datetime.strptime(request.form['start_day'], '%Y-%m-%d').date()
         end_day = datetime.strptime(request.form['end_day'], '%Y-%m-%d').date()
         participants = list(map(int, request.form.getlist('participants')))
+        locations = list(map(int, request.form.getlist('locations')))
         
         if start_day >= end_day:
             raise ValueError("End date must be after start date")
             
-        trip_id = db_manager.create_trip(participants, start_day.isoformat(), end_day.isoformat())
+        trip_id = db_manager.create_trip(participants, start_day.isoformat(), end_day.isoformat(), locations)
         return redirect(url_for('trip.trip_list'))
     
     except Exception as e:
@@ -67,18 +69,20 @@ def create_trip():
 @trip_blueprint.route('/search', methods=['GET', 'POST'])
 def search_trips():
     try:
-        # Get all users for dropdown
         users = db_manager.get_all_users()
+        all_locations = db_manager.get_all_locations()
         filters = {}
         
         if request.method == 'POST':
             participants = list(map(int, request.form.getlist('participants')))
+            locations = list(map(int, request.form.getlist('locations')))
             filters = {
                 'participants': participants if participants else None,
                 'start_after': request.form.get('start_after') or None,
                 'start_before': request.form.get('start_before') or None,
                 'end_after': request.form.get('end_after') or None,
-                'end_before': request.form.get('end_before') or None
+                'end_before': request.form.get('end_before') or None, 
+                'arrived_locations': locations if locations else None, 
             }
 
             trips = db_manager.get_trips_by_filters(**filters)
@@ -86,12 +90,16 @@ def search_trips():
             return render_template('trip_search.html',
                                  users=users,
                                  selected_participants=participants,
+                                 locations=all_locations, 
+                                 selected_locations=locations, 
                                  results=trips, 
                                  filters=filters)
         
         return render_template('trip_search.html', 
                              users=users,
                              selected_participants=[],
+                             locations=all_locations, 
+                             selected_locations=[], 
                              results=[], 
                              filters=filters)
     

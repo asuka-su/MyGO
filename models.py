@@ -63,6 +63,13 @@ class DatabaseManager:
                     address TEXT,
                     type TEXT CHECK(type IN ('attraction','restaurant','transport'))
                 )''')
+            
+            cursor.execute('''
+                CREATE TABLE trip_locations (
+                    location_id INTEGER NOT NULL REFERENCES locations(location_id) ON DELETE CASCADE,
+                    trip_id INTEGER NOT NULL REFERENCES trips(trip_id) ON DELETE CASCADE, 
+                    PRIMARY KEY (location_id, trip_id)
+                )''')
 
             # 足迹表
             cursor.execute('''
@@ -124,7 +131,7 @@ class DatabaseManager:
     ##         trip          ##
     ###########################
 
-    def create_trip(self, participants, start_day, end_day):
+    def create_trip(self, participants, start_day, end_day, location_ids):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -149,6 +156,20 @@ class DatabaseManager:
                     INSERT INTO trip_participants VALUES (?, ?)
                 ''', [(user_id, trip_id) for user_id in valid_users])
 
+                if location_ids:
+                    unique_locations = list(set(location_ids))
+                    placeholders = ', '.join(['?'] * len(unique_locations))
+                    cursor.execute(f'''
+                        SELECT location_id FROM locations
+                        WHERE location_id IN ({placeholders})
+                    ''', unique_locations)
+                    valid_locations = [row[0] for row in cursor.fetchall()]
+
+                    if valid_locations:
+                        cursor.executemany('''
+                            INSERT INTO trip_locations VALUES (?, ?)
+                        ''', [(lid, trip_id) for lid in valid_locations])
+
                 conn.commit()
                 return trip_id
             except sqlite3.Error as e:
@@ -166,29 +187,41 @@ class DatabaseManager:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT t.trip_id, t.start_day, t.end_day, 
-                    GROUP_CONCAT(u.username, ', ') 
+                SELECT 
+                    t.trip_id, 
+                    t.start_day, 
+                    t.end_day,
+                    (
+                        SELECT GROUP_CONCAT(u.username, ', ') 
+                        FROM trip_participants tp
+                        INNER JOIN users u ON tp.user_id = u.user_id
+                        WHERE tp.trip_id = t.trip_id
+                    ),
+                    (
+                        SELECT GROUP_CONCAT(l.name, ', ') 
+                        FROM trip_locations tl
+                        INNER JOIN locations l ON tl.location_id = l.location_id
+                        WHERE tl.trip_id = t.trip_id
+                    )
                 FROM trips t
-                LEFT JOIN trip_participants tp ON t.trip_id = tp.trip_id
-                LEFT JOIN users u ON tp.user_id = u.user_id
-                GROUP BY t.trip_id
                 ORDER BY t.start_day DESC
             ''')
             return [{
                 'trip_id': row[0],
                 'start_day': row[1],
                 'end_day': row[2],
-                'participants': row[3]
+                'participants': row[3], 
+                'locations': row[4] if row[4] is not None else '', 
             } for row in cursor.fetchall()]
     
     def get_trips_by_filters(self, participants, 
                              start_after=None, start_before=None, 
-                             end_after=None, end_before=None):
+                             end_after=None, end_before=None, arrived_locations=None):
         with self._get_connection() as conn:
             cursor = conn.cursor()
         
             participant_query = '''
-                SELECT t.trip_id, t.start_day, t.end_day
+                SELECT t.trip_id
                 FROM trips t
                 JOIN trip_participants tp ON t.trip_id = tp.trip_id
                 WHERE tp.user_id IN ({})
@@ -198,7 +231,20 @@ class DatabaseManager:
         
             cursor.execute(participant_query, participants + [len(participants)])
             candidate_ids = [str(row[0]) for row in cursor.fetchall()]
-        
+
+            if arrived_locations:
+                location_query = '''
+                    SELECT t.trip_id
+                    FROM trips t
+                    JOIN trip_locations tl ON t.trip_id = tl.trip_id
+                    WHERE tl.location_id IN ({})
+                    GROUP BY t.trip_id
+                    HAVING COUNT(DISTINCT tl.location_id) = ?
+                '''.format(','.join(['?']*len(arrived_locations)))
+                cursor.execute(location_query, arrived_locations + [len(arrived_locations)])
+                candidate_ids_2 = [str(row[0]) for row in cursor.fetchall()]
+                candidate_ids = list(set(candidate_ids) & set(candidate_ids_2))
+
             if not candidate_ids:
                 return []
 
@@ -250,91 +296,31 @@ class DatabaseManager:
                     'username': row[2]
                 })
             
+            location_query = f'''
+                SELECT tl.trip_id, l.location_id, l.name
+                FROM trip_locations tl
+                JOIN locations l ON tl.location_id = l.location_id
+                WHERE tl.trip_id IN ({','.join(trip_ids)})
+            '''
+            cursor.execute(location_query)
+            location_map = {}
+            for row in cursor.fetchall():
+                trip_id = row[0]
+                if trip_id not in location_map:
+                    location_map[trip_id] = []
+                location_map[trip_id].append({
+                    'location_id': row[1],
+                    'locationname': row[2]
+                })
+            
             return [{
                 'trip_id': t[0],
                 'start_day': datetime.strptime(t[1], "%Y-%m-%d").date(),
                 'end_day': datetime.strptime(t[2], "%Y-%m-%d").date(),
-                'participants': participant_map.get(t[0], [])
+                'participants': participant_map.get(t[0], []), 
+                'locations': location_map.get(t[0], []), 
             } for t in trip_data]
         
-    def create_location(self, name, address, location_type):
-        """
-        创建新地点并验证城市有效性
-        参数:
-            name: 地点名称 (必填)
-            address: 地址信息
-            location_type: 类型必须为 attraction/restaurant/transport
-        返回: 新创建地点的location_id
-        """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                # 验证类型有效性
-                valid_types = {'attraction', 'restaurant', 'transport'}
-                if location_type not in valid_types:
-                    raise ValueError(f"Invalid type: {location_type}. Must be one of {valid_types}")
-
-                # 插入主记录
-                cursor.execute('''
-                    INSERT INTO locations 
-                    (name, address, type)
-                    VALUES (?, ?, ?)
-                ''', (name, address, location_type))
-                
-                location_id = cursor.lastrowid
-                conn.commit()
-                return location_id
-
-            except sqlite3.IntegrityError as e:
-                conn.rollback()
-                if "UNIQUE constraint" in str(e):
-                    raise Exception(f"Location name '{name}' already exists")
-                raise Exception(f"Database integrity error: {str(e)}")
-                
-            except sqlite3.Error as e:
-                conn.rollback()
-                raise Exception(f"Database operation failed: {str(e)}")
-                
-            except ValueError as ve:
-                conn.rollback()
-                raise ve
-    
-    
-    ###########################
-    ##         fake          ##
-    ###########################
-    
-    def insert_fake_data(self):
-        available_user_ids = []
-        for i in range(15):
-            self.create_user(f"User_{i}", f"{i}_{i}@example.com")
-            available_user_ids.append(i+1)
-
-        for _ in range(10):
-            start_date = date.today() + timedelta(days=random.randint(1, 30))
-            end_date = start_date + timedelta(days=random.randint(1, 14))
-            num_participants = random.randint(1, 4)
-            selected_users = random.sample(available_user_ids, num_participants)
-            self.create_trip(selected_users, start_date, end_date)
-        
-
-        locations = [
-            {'name': 'Eiffel Tower', 'address': 'Paris', 'type': 'attraction'},
-            {'name': 'Louvre Museum', 'address': 'Paris', 'type': 'attraction'},
-            {'name': 'Big Ben', 'address': 'London', 'type': 'attraction'},
-            {'name': 'Daxing Airport', 'address': 'Beijing', 'type': 'transport'},
-            {'name': 'Beijing West Railway Station', 'address': 'Beijing', 'type': 'transport'},
-            {'name': 'Peking Duck Restaurant', 'address': 'Beijing', 'type': 'restaurant'},
-            {'name': 'Sushi Place', 'address': 'Tokyo', 'type': 'restaurant'},
-            {'name': 'Great Wall', 'address': 'Beijing', 'type': 'attraction'},
-            {'name': 'Forbidden City', 'address': 'Beijing', 'type': 'attraction'},
-            {'name': 'Tokyo Tower', 'address': 'Tokyo', 'type': 'attraction'}
-        ]
-
-        for location in locations:
-            self.create_location(location['name'], location['address'], location['type'])
-
-        # self._batch_insert('locations', locations)
 
     ###########################
     ##       footprint       ##
@@ -465,7 +451,53 @@ class DatabaseManager:
                 })
             return footprints
     
-    # 新增locations相关方法
+    ###########################
+    ##       location        ##
+    ###########################
+    
+    def create_location(self, name, address, location_type):
+        """
+        创建新地点并验证城市有效性
+        参数:
+            name: 地点名称 (必填)
+            address: 地址信息
+            location_type: 类型必须为 attraction/restaurant/transport
+        返回: 新创建地点的location_id
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                # 验证类型有效性
+                valid_types = {'attraction', 'restaurant', 'transport'}
+                if location_type not in valid_types:
+                    raise ValueError(f"Invalid type: {location_type}. Must be one of {valid_types}")
+
+                # 插入主记录
+                cursor.execute('''
+                    INSERT INTO locations 
+                    (name, address, type)
+                    VALUES (?, ?, ?)
+                ''', (name, address, location_type))
+                
+                location_id = cursor.lastrowid
+                conn.commit()
+                return location_id
+
+            except sqlite3.IntegrityError as e:
+                conn.rollback()
+                if "UNIQUE constraint" in str(e):
+                    raise Exception(f"Location name '{name}' already exists")
+                raise Exception(f"Database integrity error: {str(e)}")
+                
+            except sqlite3.Error as e:
+                conn.rollback()
+                raise Exception(f"Database operation failed: {str(e)}")
+                
+            except ValueError as ve:
+                conn.rollback()
+                raise ve 
+    
+
     def get_all_locations(self):
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -478,3 +510,40 @@ class DatabaseManager:
                 'name': row[1],
             } for row in cursor.fetchall()]
 
+    ###########################
+    ##         fake          ##
+    ###########################
+    
+    def insert_fake_data(self):
+        available_user_ids = []
+        for i in range(15):
+            self.create_user(f"User_{i}", f"{i}_{i}@example.com")
+            available_user_ids.append(i+1)
+
+        locations = [
+            {'name': 'Eiffel Tower', 'address': 'Paris', 'type': 'attraction'},
+            {'name': 'Louvre Museum', 'address': 'Paris', 'type': 'attraction'},
+            {'name': 'Big Ben', 'address': 'London', 'type': 'attraction'},
+            {'name': 'Daxing Airport', 'address': 'Beijing', 'type': 'transport'},
+            {'name': 'Beijing West Railway Station', 'address': 'Beijing', 'type': 'transport'},
+            {'name': 'Peking Duck Restaurant', 'address': 'Beijing', 'type': 'restaurant'},
+            {'name': 'Sushi Place', 'address': 'Tokyo', 'type': 'restaurant'},
+            {'name': 'Great Wall', 'address': 'Beijing', 'type': 'attraction'},
+            {'name': 'Forbidden City', 'address': 'Beijing', 'type': 'attraction'},
+            {'name': 'Tokyo Tower', 'address': 'Tokyo', 'type': 'attraction'}
+        ]
+
+        available_location_ids = []
+        for i, location in enumerate(locations):
+            self.create_location(location['name'], location['address'], location['type'])
+            available_location_ids.append(i + 1)
+
+        for _ in range(10):
+            start_date = date.today() + timedelta(days=random.randint(1, 30))
+            end_date = start_date + timedelta(days=random.randint(1, 14))
+            num_participants = random.randint(1, 4)
+            selected_users = random.sample(available_user_ids, num_participants)
+            num_locations = random.randint(0, 2)
+            selected_locations = random.sample(available_location_ids, num_locations)
+            self.create_trip(selected_users, start_date, end_date, selected_locations)
+        

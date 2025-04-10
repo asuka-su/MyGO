@@ -17,6 +17,7 @@ Footprint
 - get_all_footprints
 
 Location
+- create_location
 - get_all_locations
 
 Fake Data

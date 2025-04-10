@@ -123,6 +123,17 @@
             <label>End Date</label>
             <input type="date" name="end_day" required>
         </div>
+        
+        <div class="form-group">
+            <label>Locations</label>
+            <select name="locations" multiple class="participant-select">
+                {% for location in locations %}
+                <option value="{{ location.location_id }}">
+                    {{ location.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
 
         <button type="submit">Create Trip</button>
     </form>
@@ -143,6 +154,7 @@
             <tr>
                 <th>Trip ID</th>
                 <th>Participants</th>
+                <th>Locations</th>
                 <th>Start Date</th>
                 <th>End Date</th>
                 <th>Action</th>
@@ -153,6 +165,7 @@
             <tr>
                 <td>{{ trip.trip_id }}</td>
                 <td>{{ trip.participants }}</td>
+                <td>{{ trip.locations }}</td>
                 <td>{{ trip.start_day }}</td>
                 <td>{{ trip.end_day }}</td>
                 <td>
