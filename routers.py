@@ -224,3 +224,53 @@ def edit_footprint(footprint_id):
 #     if db_manager.add_comment(footprint_id, user_id, content, parent_id):
 #         return redirect(url_for('footprint.footprint_detail', footprint_id=footprint_id))
 #     return "Failed to add comment", 400
+@footprint_blueprint.route('/<int:footprint_id>')
+@footprint_blueprint.route('/<int:footprint_id>')
+def footprint_detail(footprint_id):
+    footprint = db_manager.get_footprint_detail(footprint_id)
+    if not footprint:
+        return "Footprint not found", 404
+    
+    # 获取用户ID（通过查询参数）
+    user_id = request.args.get('user_id', type=int)
+    
+    # 判断是否已收藏
+    collected = False
+    if user_id:
+        collected = db_manager.is_collected(user_id, footprint_id)
+    
+    comments = db_manager.get_comments_by_footprint(footprint_id)
+    return render_template('footprint_detail.html',
+                         footprint=footprint,
+                         comments=comments,
+                         collected=collected,  # 传递收藏状态
+                         user_id=user_id)      # 传递当前用户ID
+
+@footprint_blueprint.route('/<int:footprint_id>/comments', methods=['POST'])
+def add_comment(footprint_id):
+    user_id = request.form.get('user_id')
+    content = request.form.get('content')
+    if not user_id or not content:
+        return "Missing parameters", 400
+    if db_manager.create_comment(int(user_id), footprint_id, content):
+        return redirect(url_for('footprint.footprint_detail', footprint_id=footprint_id))
+    return "Failed to add comment", 400
+
+@footprint_blueprint.route('/<int:footprint_id>/collect', methods=['POST'])
+@footprint_blueprint.route('/<int:footprint_id>/collect', methods=['POST'])
+def toggle_collect(footprint_id):
+    user_id = request.form.get('user_id', type=int)
+    if not user_id:
+        return "User ID required", 400
+    
+    # 操作后重定向回详情页，并携带用户ID参数
+    return redirect(url_for('footprint.footprint_detail',
+                           footprint_id=footprint_id,
+                           user_id=user_id))
+
+@footprint_blueprint.route('/collections/<int:user_id>')
+def user_collections(user_id):
+    collections = db_manager.get_collections_by_user(user_id)
+    return render_template('collection_list.html', 
+                         collections=collections,
+                         user_id=user_id)

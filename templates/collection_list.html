@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Collections</title>
+    <style>
+        .collection-item { padding: 15px; border-bottom: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>User {{ user_id }}'s Collections</h1>
+    {% for col in collections %}
+    <div class="collection-item">
+        <h3><a href="{{ url_for('footprint.footprint_detail', footprint_id=col.footprint_id) }}">{{ col.title }}</a></h3>
+        <p>Author: {{ col.username }}</p>
+        <p>Location: {{ col.location_name }}</p>
+    </div>
+    {% endfor %}
+</body>
+</html>

@@ -82,6 +82,24 @@ class DatabaseManager:
                     user_id INTEGER NOT NULL REFERENCES users(user_id),
                     location_id INTEGER NOT NULL REFERENCES locations(location_id)
                 )''')
+
+            cursor.execute('''
+                CREATE TABLE comments (
+                    comment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    content TEXT NOT NULL,
+                    created_at DATETIME NOT NULL,
+                    user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                    footprint_id INTEGER NOT NULL REFERENCES footprints(footprint_id) ON DELETE CASCADE,
+                    parent_comment_id INTEGER REFERENCES comments(comment_id) ON DELETE CASCADE
+                )''')
+
+            cursor.execute('''
+                CREATE TABLE collections (
+                    user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                    footprint_id INTEGER NOT NULL REFERENCES footprints(footprint_id) ON DELETE CASCADE,
+                    created_at DATETIME NOT NULL,
+                    PRIMARY KEY (user_id, footprint_id)
+                )''')
             
             conn.commit()
     
@@ -552,6 +570,105 @@ class DatabaseManager:
                 'location_id': row[0],
                 'name': row[1],
             } for row in cursor.fetchall()]
+
+    ###########################
+    ##       comment        ##
+    ###########################
+
+    def create_comment(self, user_id, footprint_id, content, parent_id=None):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('''
+                    INSERT INTO comments 
+                    (content, created_at, user_id, footprint_id, parent_comment_id)
+                    VALUES (?, datetime('now'), ?, ?, ?)
+                ''', (content, user_id, footprint_id, parent_id))
+                conn.commit()
+                return cursor.lastrowid
+            except sqlite3.Error as e:
+                print(f"创建评论失败: {str(e)}")
+                return None
+
+    def get_comments_by_footprint(self, footprint_id):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT c.*, u.username 
+                FROM comments c
+                JOIN users u ON c.user_id = u.user_id
+                WHERE c.footprint_id = ?
+                ORDER BY c.created_at DESC
+            ''', (footprint_id,))
+            return [{
+                'comment_id': row[0],
+                'content': row[1],
+                'created_at': row[2],
+                'user_id': row[3],
+                'username': row[6],
+                'parent_comment_id': row[5]
+            } for row in cursor.fetchall()]
+
+    ###########################
+    ##      collection       ##
+    ###########################
+
+    def create_collection(self, user_id, footprint_id):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('''
+                    INSERT INTO collections 
+                    (user_id, footprint_id, created_at)
+                    VALUES (?, ?, datetime('now'))
+                ''', (user_id, footprint_id))
+                conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                return False  # 已存在收藏记录
+            except sqlite3.Error as e:
+                print(f"收藏失败: {str(e)}")
+                return False
+
+    def delete_collection(self, user_id, footprint_id):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                DELETE FROM collections 
+                WHERE user_id = ? AND footprint_id = ?
+            ''', (user_id, footprint_id))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_collections_by_user(self, user_id):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT f.*, u.username, l.name as location_name
+                FROM collections c
+                JOIN footprints f ON c.footprint_id = f.footprint_id
+                JOIN users u ON f.user_id = u.user_id
+                JOIN locations l ON f.location_id = l.location_id
+                WHERE c.user_id = ?
+                ORDER BY c.created_at DESC
+            ''', (user_id,))
+            return [{
+                'footprint_id': row[0],
+                'title': row[1],
+                'content': row[2],
+                'created_at': row[4],
+                'username': row[7],
+                'location_name': row[8]
+            } for row in cursor.fetchall()]
+
+    def is_collected(self, user_id, footprint_id):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT 1 FROM collections 
+                WHERE user_id = ? AND footprint_id = ?
+            ''', (user_id, footprint_id))
+            return cursor.fetchone() is not None
 
     ###########################
     ##         fake          ##

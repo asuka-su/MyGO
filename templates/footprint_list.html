@@ -87,6 +87,9 @@
                class="button" 
                style="background-color: #28a745;">Edit</a>
         </div>
+        <a href="{{ url_for('footprint.footprint_detail', footprint_id=fp.footprint_id) }}">
+            View Details
+        </a>
         <!-- {% if fp.image_url %}
         <img src="{{ fp.image_url }}" alt="Footprint image" style="max-width: 300px;">
         {% endif %} -->
