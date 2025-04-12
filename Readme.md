@@ -15,6 +15,8 @@ Trip & Trip-Participants
 Footprint
 - create_footprint
 - get_all_footprints
+- get_footprints_by_filters
+- update_footprint
 
 Location
 - create_location
